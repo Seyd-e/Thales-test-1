@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Thales Mini-Game — Candlestick Pattern (Test Run)</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+    body { margin: 0; background: #0b0f14; color: #e6edf3; }
+    .wrap { max-width: 920px; margin: 0 auto; padding: 24px; }
+    .card { background: #111826; border: 1px solid #223046; border-radius: 14px; padding: 18px; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .sub { color: #9fb2c7; margin: 0 0 18px; line-height: 1.35; }
+    .grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+    @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+    canvas { width: 100%; height: auto; background: #0b1220; border: 1px solid #223046; border-radius: 12px; }
+    .q { margin-top: 10px; }
+    .choices { display: grid; gap: 10px; margin-top: 10px; }
+    label.choice {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 10px 12px; border: 1px solid #223046; border-radius: 12px;
+      background: #0d1524; cursor: pointer;
+    }
+    label.choice:hover { border-color: #3b5476; }
+    input[type="radio"] { margin-top: 3px; }
+    button {
+      margin-top: 12px; padding: 10px 14px; border: 0; border-radius: 12px;
+      background: #2f81f7; color: #08101a; font-weight: 700; cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .out {
+      margin-top: 14px; padding: 12px; border-radius: 12px;
+      border: 1px solid #223046; background: #0b1220;
+      line-height: 1.45;
+    }
+    .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .ok { background: rgba(46, 160, 67, 0.2); color: #7ee787; border: 1px solid rgba(46, 160, 67, 0.35); }
+    .bad { background: rgba(248, 81, 73, 0.18); color: #ffb4ae; border: 1px solid rgba(248, 81, 73, 0.35); }
+    .mid { background: rgba(255, 193, 7, 0.18); color: #ffd56a; border: 1px solid rgba(255, 193, 7, 0.35); }
+    .small { color: #9fb2c7; font-size: 13px; }
+    .hr { height: 1px; background: #223046; margin: 10px 0; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12.5px; color: #c9d1d9; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Thales Mini-Game (Test Run)</h1>
+      <p class="sub">
+        One question. One pattern screen. Pick an answer. You’ll get a Thales-style response:
+        <b>what it is</b>, <b>what it means</b>, <b>when it works</b>, and <b>what traders commonly mess up</b>.
+      </p>
+
+      <div class="grid">
+        <div>
+          <canvas id="chart" width="820" height="420" aria-label="Candlestick pattern screen"></canvas>
+          <p class="small" style="margin:10px 0 0;">
+            Screen shows a pullback into a prior level, then a two-candle pattern prints at the low.
+          </p>
+        </div>
+
+        <div>
+          <div class="q">
+            <div class="mono">QUESTION 1/1</div>
+            <h2 style="margin:6px 0 0; font-size:18px;">What pattern is highlighted?</h2>
+            <p class="small" style="margin:6px 0 0;">
+              Select one. (No trick: it’s a classic two-candle pattern.)
+            </p>
+
+            <form id="quiz">
+              <div class="choices">
+                <label class="choice">
+                  <input type="radio" name="ans" value="A" />
+                  <div><b>A)</b> Bullish Engulfing</div>
+                </label>
+
+                <label class="choice">
+                  <input type="radio" name="ans" value="B" />
+                  <div><b>B)</b> Bearish Engulfing</div>
+                </label>
+
+                <label class="choice">
+                  <input type="radio" name="ans" value="C" />
+                  <div><b>C)</b> Morning Star</div>
+                </label>
+
+                <label class="choice">
+                  <input type="radio" name="ans" value="D" />
+                  <div><b>D)</b> Inside Bar</div>
+                </label>
+              </div>
+
+              <button id="submit" type="submit" disabled>Submit</button>
+            </form>
+
+            <div id="out" class="out" style="display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hr"></div>
+      <p class="small">
+        If you want this to match your exact workflow, next version adds:
+        structure labels (HH/HL/BOS/CHoCH), a “why it failed” branch, and difficulty tiers.
+      </p>
+    </div>
+  </div>
+
+<script>
+  // ---------- Render a simple candlestick "screen" with a highlighted bullish engulfing ----------
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+
+  function draw() {
+    // Background grid
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = "#0b1220";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // Grid lines
+    ctx.strokeStyle = "rgba(159,178,199,0.10)";
+    ctx.lineWidth = 1;
+    for (let x=40; x<canvas.width; x+=60) {
+      ctx.beginPath(); ctx.moveTo(x,20); ctx.lineTo(x,canvas.height-20); ctx.stroke();
+    }
+    for (let y=30; y<canvas.height; y+=50) {
+      ctx.beginPath(); ctx.moveTo(20,y); ctx.lineTo(canvas.width-20,y); ctx.stroke();
+    }
+
+    // Fake "price path" (context)
+    // We'll place candles along x with a gentle down move then reversal.
+    const candles = [
+      // x, open, high, low, close (y-values; smaller y => higher price visually)
+      {x:110, o:160, h:140, l:190, c:180},
+      {x:170, o:180, h:170, l:220, c:210},
+      {x:230, o:210, h:205, l:250, c:240},
+      {x:290, o:240, h:235, l:285, c:270},
+
+      // The pattern area: small bearish candle then bullish engulfing
+      {x:350, o:270, h:275, l:320, c:310, tag:"bearSmall"}, // small bearish
+      {x:410, o:315, h:330, l:305, c:260, tag:"bullEngulf"}, // bullish engulfing
+
+      // Follow-through candles
+      {x:470, o:260, h:235, l:270, c:240},
+      {x:530, o:240, h:210, l:250, c:220},
+      {x:590, o:220, h:200, l:230, c:205},
+      {x:650, o:205, h:185, l:215, c:190}
+    ];
+
+    // Draw a "prior level" line
+    ctx.strokeStyle = "rgba(47,129,247,0.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(40,290);
+    ctx.lineTo(canvas.width-40,290);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(47,129,247,0.85)";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace";
+    ctx.fillText("Prior level", 52, 280);
+
+    function candleColor(o,c) {
+      return (c < o) ? "#ff7b72" : "#7ee787"; // down red-ish, up green-ish
+    }
+
+    function drawCandle({x,o,h,l,c,tag}) {
+      const w = 18;
+
+      // wick
+      ctx.strokeStyle = "rgba(230,237,243,0.55)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x, h);
+      ctx.lineTo(x, l);
+      ctx.stroke();
+
+      // body
+      const top = Math.min(o,c);
+      const bot = Math.max(o,c);
+      ctx.fillStyle = candleColor(o,c);
+      ctx.globalAlpha = 0.85;
+      ctx.fillRect(x - w/2, top, w, Math.max(6, bot-top));
+      ctx.globalAlpha = 1;
+
+      // highlight box for the pattern candles
+      if (tag === "bearSmall" || tag === "bullEngulf") {
+        ctx.strokeStyle = "rgba(255,213,106,0.85)";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 26, 190, 52, 170);
+      }
+    }
+
+    candles.forEach(drawCandle);
+
+    // Title
+    ctx.fillStyle = "#e6edf3";
+    ctx.font = "16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif";
+    ctx.fillText("EUR/USD — Pattern Identification (Simulated Screen)", 40, 32);
+
+    // Hint label
+    ctx.fillStyle = "rgba(255,213,106,0.95)";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace";
+    ctx.fillText("HIGHLIGHTED AREA", 318, 410);
+  }
+
+  draw();
+
+  // ---------- Quiz logic ----------
+  const quiz = document.getElementById("quiz");
+  const out = document.getElementById("out");
+  const submitBtn = document.getElementById("submit");
+
+  quiz.addEventListener("change", () => {
+    submitBtn.disabled = !quiz.ans.value;
+  });
+
+  quiz.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const user = quiz.ans.value;
+
+    // Correct is Bullish Engulfing
+    const correct = "A";
+    const isCorrect = user === correct;
+
+    const badge = isCorrect
+      ? `<span class="pill ok">CORRECT</span>`
+      : `<span class="pill bad">INCORRECT</span>`;
+
+    // Thales-style: definition + meaning + context conditions + common mistake + next rep
+    const core = `
+      ${badge}
+      <div style="margin-top:10px;">
+        <b>Answer:</b> ${isCorrect ? "Bullish Engulfing" : "Bullish Engulfing (the correct one)"}
+      </div>
+
+      <div class="hr"></div>
+
+      <div><b>What you’re looking at (structure → candle):</b></div>
+      <ul>
+        <li>The market pulls into a prior level (blue line).</li>
+        <li>A small bearish candle prints first (weak continuation).</li>
+        <li>Next candle closes strongly upward and <b>engulfs the prior candle’s body</b> → initiative buying.</li>
+      </ul>
+
+      <div><b>Cause → effect (what it usually means):</b></div>
+      <ul>
+        <li>Sell pressure attempted continuation, failed.</li>
+        <li>Buyers stepped in aggressively and displaced price.</li>
+        <li>It suggests a <b>potential</b> reversal or continuation <b>only if context supports it</b>.</li>
+      </ul>
+
+      <div><b>Context filter (when this is valid):</b></div>
+      <ul>
+        <li><b>Location:</b> at a meaningful level (swing low / HTF support / prior demand).</li>
+        <li><b>Condition:</b> you want follow-through (next candle(s) not instantly fading).</li>
+        <li><b>Risk:</b> if it prints mid-range, it’s often noise.</li>
+      </ul>
+
+      <div><b>Common mistake (why traders get cooked):</b></div>
+      <ul>
+        <li>They treat the pattern as a guaranteed buy signal.</li>
+        <li>They ignore that it can be <b>liquidity bait</b> if higher timeframe is bearish or news is imminent.</li>
+      </ul>
+
+      <div class="hr"></div>
+
+      <div><b>Next rep (how Thales would level you up):</b></div>
+      <div class="small">
+        I’d now show the same pattern in 3 contexts and ask: “Which one is tradable and why?”
+        That’s how you build intuition instead of memorising shapes.
+      </div>
+    `;
+
+    out.style.display = "block";
+    out.innerHTML = core;
+
+    // Lock after submission (like a real test run)
+    [...quiz.querySelectorAll("input[type=radio]")].forEach(r => r.disabled = true);
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Submitted";
+  });
+</script>
+</body>
+</html>
